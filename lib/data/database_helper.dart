@@ -1,111 +1,81 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
-import '../models/user_model.dart';
-import '../models/product_model.dart';
+import 'dart:convert';
+import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class DatabaseHelper {
-  static final DatabaseHelper instance = DatabaseHelper._init();
+  static final DatabaseHelper _instance = DatabaseHelper._internal();
+  factory DatabaseHelper() => _instance;
+  DatabaseHelper._internal();
 
   static Database? _database;
 
-  DatabaseHelper._init();
-
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('app_record.db');
+    _database = await _initDatabase();
     return _database!;
   }
 
-  Future<Database> _initDB(String filePath) async {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, filePath);
-
-    return await openDatabase(
-      path,
-      version: 1,
-      onCreate: _createDB,
-    );
-  }
-
-  Future<void> _createDB(Database db, int version) async {
-    await db.execute('''
-      CREATE TABLE users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        email TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL
-      )
-    ''');
-
-    await db.execute('''
-      CREATE TABLE products (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        price REAL NOT NULL
-      )
-    ''');
-
-    // Default admin user
-    await db.execute('''
-      INSERT INTO users (name, email, password)
-      VALUES ('Administrador', 'admin@app.com', '123456')
-    ''');
-  }
-
-  Future<UserModel> insertUser(UserModel user) async {
-    final db = await instance.database;
-    final id = await db.insert('users', user.toMap());
-    return UserModel(
-        id: id, name: user.name, email: user.email, password: user.password);
-  }
-
-  Future<List<UserModel>> getUsers() async {
-    final db = await instance.database;
-    final result = await db.query('users');
-    return result.map((json) => UserModel.fromMap(json)).toList();
-  }
-
-  Future<int> deleteUser(int id) async {
-    final db = await instance.database;
-    return await db.delete('users', where: 'id = ?', whereArgs: [id]);
-  }
-
-  Future<UserModel?> authenticateUser(String email, String password) async {
-    // Datos quemados para pruebas sin BD
-    const String adminEmail = 'admin@app.com';
-    const String adminPassword = '123456';
-    
-    if (email == adminEmail && password == adminPassword) {
-      return UserModel(
-        id: 1,
-        name: 'Administrador',
-        email: adminEmail,
-        password: adminPassword,
+  Future<Database> _initDatabase() async {
+    if (kIsWeb) {
+      // Usar sqlite FFI en WEB
+      databaseFactory = databaseFactoryFfiWeb;
+      return await databaseFactory.openDatabase('app_record.db',
+          options: OpenDatabaseOptions(
+            version: 1,
+            onCreate: _onCreate,
+          ));
+    } else {
+      // Móvil/Desktop
+      String path = join(await getDatabasesPath(), 'app_record.db');
+      return await openDatabase(
+        path,
+        version: 1,
+        onCreate: _onCreate,
       );
     }
+  }
+
+  Future<void> _onCreate(Database db, int version) async {
+    // Tabla de Transacciones locales
+    await db.execute('''
+      CREATE TABLE transactions(
+        id TEXT PRIMARY KEY,
+        amount REAL NOT NULL,
+        type TEXT NOT NULL,
+        category TEXT NOT NULL,
+        date TEXT NOT NULL,
+        note TEXT,
+        synced INTEGER DEFAULT 0 
+      )
+    ''');
     
-    return null;
+    // Tabla para ajustes/metas también puede ir aquí después
   }
 
-  Future<ProductModel> insertProduct(ProductModel product) async {
-    final db = await instance.database;
-    final id = await db.insert('products', product.toMap());
-    return ProductModel(id: id, name: product.name, price: product.price);
+  // ============== MÉTODOS CRUD INTERNOS ==============
+
+  Future<int> insertTransaction(Map<String, dynamic> transactionMap) async {
+    final db = await database;
+    // Forzar status no sincronizado si acaba de crearse offline
+    transactionMap['synced'] = 0;
+    return await db.insert('transactions', transactionMap,
+        conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
-  Future<List<ProductModel>> getProducts() async {
-    final db = await instance.database;
-    final result = await db.query('products');
-    return result.map((json) => ProductModel.fromMap(json)).toList();
+  Future<List<Map<String, dynamic>>> getUnsyncedTransactions() async {
+    final db = await database;
+    return await db.query('transactions', where: 'synced = ?', whereArgs: [0]);
   }
 
-  Future<int> deleteProduct(int id) async {
-    final db = await instance.database;
-    return await db.delete('products', where: 'id = ?', whereArgs: [id]);
+  Future<int> markAsSynced(String id) async {
+    final db = await database;
+    return await db.update('transactions', {'synced': 1}, where: 'id = ?', whereArgs: [id]);
   }
 
-  Future<void> close() async {
-    final db = await instance.database;
-    db.close();
+  Future<List<Map<String, dynamic>>> getAllTransactions() async {
+    final db = await database;
+    return await db.query('transactions', orderBy: 'date DESC');
   }
 }
