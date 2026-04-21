@@ -140,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           onChanged: (value) {
                             setState(() => _useLocalAuth = value);
                           },
-                          activeColor: Colors.indigo,
+                          activeThumbColor: Colors.indigo,
                         ),
                       ],
                     ),
