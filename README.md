@@ -19,7 +19,7 @@ No es sólo un libro contable; es un asesor de bolsillo:
 
 ---
 
-## 🛠Arquitectura Tecnológica
+## Arquitectura Tecnológica
 
 - **Frontend:** Flutter (Móvil/Web), `sqflite` para caché persistente fuera de línea, enrutamiento MVC limpio.
 - **API de backend:** Node.js, Express.js.
@@ -28,7 +28,7 @@ No es sólo un libro contable; es un asesor de bolsillo:
 
 ---
 
-## 🚀 Flujo de Trabajo (El "Record")
+##  Flujo de Trabajo (El "Record")
 1. **El Usuario (El Twin)**: Inicia sesión (obtiene un Token Seguro).
 2. **Registro Instantáneo**: Realiza compras, añade un "Record" (Gasto) usando la UI interactiva que responde en 0 ms porque se guarda primero de forma local en la SD del celular.
 3. **Ghost-Sync**: Tras guardar exitosamente en el móvil, la aplicación empuja automáticamente un POST al servidor. Si el servidor Node.js/MySQL está disponible y el Token es válido, se asegura la copia remota.
