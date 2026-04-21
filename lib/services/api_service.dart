@@ -44,8 +44,7 @@ class ApiService {
         }),
       ).timeout(const Duration(seconds: 10));
 
-      print("STATUS: ${response.statusCode}");
-      print("BODY: ${response.body}");
+      // Status and Body check removed for production
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -72,7 +71,7 @@ class ApiService {
         };
       }
     } catch (e) {
-      print("Error de conexión: $e");
+      // Handle error without printing for production
       return {
         'success': false,
         'message': 'Error de conexión: $e',

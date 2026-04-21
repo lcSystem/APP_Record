@@ -4,6 +4,7 @@ import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../models/user_model.dart';
 import '../models/product_model.dart';
+import '../models/transaction_model.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -53,7 +54,7 @@ class DatabaseHelper {
         'email': 'admin@app.com',
         'password': '123456',
       });
-      print('✅ Usuario admin por defecto creado en BD Local.');
+      // No printing in production
     }
   }
 
@@ -143,18 +144,17 @@ class DatabaseHelper {
     return await db.delete('products', where: 'id = ?', whereArgs: [id]);
   }
 
-  // Transacciones
-  Future<int> insertTransaction(Map<String, dynamic> transactionMap) async {
+  // Transacciones (Financial Records)
+  Future<int> insertTransaction(TransactionModel transaction) async {
     final db = await database;
-    // Forzar status no sincronizado si acaba de crearse offline
-    transactionMap['synced'] = 0;
-    return await db.insert('transactions', transactionMap,
+    return await db.insert('transactions', transaction.toMap(),
         conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
-  Future<List<Map<String, dynamic>>> getUnsyncedTransactions() async {
+  Future<List<TransactionModel>> getUnsyncedTransactions() async {
     final db = await database;
-    return await db.query('transactions', where: 'synced = ?', whereArgs: [0]);
+    final List<Map<String, dynamic>> maps = await db.query('transactions', where: 'synced = ?', whereArgs: [0]);
+    return List.generate(maps.length, (i) => TransactionModel.fromMap(maps[i]));
   }
 
   Future<int> markAsSynced(String id) async {
@@ -162,8 +162,38 @@ class DatabaseHelper {
     return await db.update('transactions', {'synced': 1}, where: 'id = ?', whereArgs: [id]);
   }
 
-  Future<List<Map<String, dynamic>>> getAllTransactions() async {
+  Future<List<TransactionModel>> getAllTransactions() async {
     final db = await database;
-    return await db.query('transactions', orderBy: 'date DESC');
+    final List<Map<String, dynamic>> maps = await db.query('transactions', orderBy: 'date DESC');
+    return List.generate(maps.length, (i) => TransactionModel.fromMap(maps[i]));
+  }
+
+  Future<int> deleteTransaction(String id) async {
+    final db = await database;
+    return await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // Dashboard Stats
+  Future<Map<String, double>> getFinancialSummary() async {
+    final db = await database;
+    final List<Map<String, dynamic>> result = await db.query('transactions');
+    
+    double totalIncome = 0;
+    double totalExpense = 0;
+    
+    for (var row in result) {
+      double amount = (row['amount'] as num).toDouble();
+      if (row['type'] == 'income') {
+        totalIncome += amount;
+      } else {
+        totalExpense += amount;
+      }
+    }
+    
+    return {
+      'totalIncome': totalIncome,
+      'totalExpense': totalExpense,
+      'balance': totalIncome - totalExpense,
+    };
   }
 }
